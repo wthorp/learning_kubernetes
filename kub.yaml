@@ -1,0 +1,83 @@
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: sat-set
+spec:
+  volumeClaimTemplates:
+  - metadata:
+      name: sat-db
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      volumeMode: Filesystem
+      storageClassName: persistent-ssd
+      resources:
+        requests:
+          storage: 2Gi
+  updateStrategy:
+    rollingUpdate: {}
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      name: sat
+      component: sat-set
+  template:
+    spec:
+      imagePullSecrets: []
+      containers:
+      - name: sat
+        image: repo:6666/storj/satellite:latest
+        volumeMounts:
+        - mountPath: /home/storj/.local/share/storj
+          name: sat-db
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #     - /ready
+        #   failureThreshold: 1
+        #   periodSeconds: 1
+        #   timeoutSeconds: 1
+        # livenessProbe:
+        #   exec:
+        #     command:
+        #     - /lively
+        #   failureThreshold: 1
+        #   periodSeconds: 1
+        #   timeoutSeconds: 1
+      initContainers:
+      - name: setup
+        image: repo:6666/storj/setup:latest
+        volumeMounts:
+        - mountPath: /home/storj/.local/share/storj
+          name: sat-db
+      terminationGracePeriodSeconds: 30
+    metadata:
+      labels:
+        name: sat
+        component: sat-set
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  serviceName: sat-svc
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sat-svc
+spec:
+  ports:
+  - port: 7777
+    targetPort: 7777
+    name: sat-svc-7777
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: persistent-ssd
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
